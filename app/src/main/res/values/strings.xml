@@ -581,6 +581,10 @@ OpenTune will only extract your token, and everything else is stored locally.</s
     <string name="navidrome_search_hint">Search your Navidrome library…</string>
     <string name="navidrome_no_results">No results</string>
     <string name="navidrome_no_playlist">No playlist found on the server — import your playlist.m3u into Navidrome</string>
+    <string name="navidrome_data_saver">Data saver (max streaming bitrate)</string>
+    <string name="navidrome_bitrate_unlimited">Unlimited</string>
+    <string name="navidrome_local_matches">In your list (%1$d)</string>
+    <string name="navidrome_sort_playlist_order">Playlist order</string>
     <string name="navidrome_sort_recently_played">Recently played</string>
     <string name="navidrome_sort_frequently_played">Frequently played</string>
     <string name="navidrome_sort_random">Random</string>

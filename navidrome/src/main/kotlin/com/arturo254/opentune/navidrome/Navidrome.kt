@@ -278,6 +278,14 @@ object Navidrome {
         mapOf("id" to id),
     ).map { it.playlist ?: PlaylistWithSongs(id = id) }
 
+    /** Stars (favorites) an entity on the server — song, album or artist id. */
+    suspend fun star(serverUrl: String, username: String, password: String, id: String): Result<Unit> =
+        request(serverUrl, username, password, "star.view", mapOf("id" to id)).map { }
+
+    /** Removes the star from an entity on the server. */
+    suspend fun unstar(serverUrl: String, username: String, password: String, id: String): Result<Unit> =
+        request(serverUrl, username, password, "unstar.view", mapOf("id" to id)).map { }
+
     /** Direct streaming URL for a song, suitable for media players. */
     fun streamUrl(
         serverUrl: String,

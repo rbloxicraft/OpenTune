@@ -123,6 +123,27 @@ constructor(
             songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
                 return@Factory dataSpec.withUri(it.first.toUri())
             }
+            // Navidrome songs download from the user's own server — full
+            // quality (no data-saver cap on explicit downloads).
+            if (mediaId.startsWith(com.arturo254.opentune.navidrome.Navidrome.SONG_ID_PREFIX)) {
+                val access = com.arturo254.opentune.utils.navidromeAccessCached()
+                    ?: throw IllegalStateException("Navidrome server not configured")
+                val url = com.arturo254.opentune.navidrome.Navidrome.streamUrl(
+                    access.serverUrl,
+                    access.username,
+                    access.password,
+                    mediaId.removePrefix(com.arturo254.opentune.navidrome.Navidrome.SONG_ID_PREFIX),
+                    salt = access.salt,
+                )
+                database.query {
+                    getSongByIdBlocking(mediaId)?.song?.let { song ->
+                        if (song.dateDownload == null) {
+                            upsert(song.copy(dateDownload = LocalDateTime.now()))
+                        }
+                    }
+                }
+                return@Factory dataSpec.withUri(url.toUri())
+            }
             val playbackData = runBlocking(Dispatchers.IO) {
                 val networkMeteredPref = context.dataStore.get(NetworkMeteredKey, true)
                 YTPlayerUtils.playerResponseForPlayback(

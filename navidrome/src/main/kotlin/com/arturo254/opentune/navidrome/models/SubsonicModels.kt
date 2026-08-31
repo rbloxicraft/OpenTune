@@ -165,6 +165,7 @@ data class Song(
     val bitRate: Int? = null,
     val samplingRate: Int? = null,
     val path: String? = null,
+    val starred: String? = null,
     val playCount: Long? = null,
     val discNumber: Int? = null,
     val created: String? = null,

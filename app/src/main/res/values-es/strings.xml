@@ -508,6 +508,10 @@
     <string name="navidrome_search_hint">Busca en tu biblioteca de Navidrome…</string>
     <string name="navidrome_no_results">Sin resultados</string>
     <string name="navidrome_no_playlist">No se encontró ninguna playlist en el servidor — importa tu playlist.m3u en Navidrome</string>
+    <string name="navidrome_data_saver">Ahorro de datos (bitrate máximo)</string>
+    <string name="navidrome_bitrate_unlimited">Ilimitado</string>
+    <string name="navidrome_local_matches">En tu lista (%1$d)</string>
+    <string name="navidrome_sort_playlist_order">Orden de la playlist</string>
     <string name="navidrome_sort_recently_played">Reproducidos recientemente</string>
     <string name="navidrome_sort_frequently_played">Reproducidos con frecuencia</string>
     <string name="navidrome_sort_random">Aleatorio</string>

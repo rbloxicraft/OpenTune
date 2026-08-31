@@ -9,16 +9,19 @@
 package com.arturo254.opentune.viewmodels
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
+import com.arturo254.opentune.constants.NavidromePlaylistIdKey
 import com.arturo254.opentune.db.MusicDatabase
 import com.arturo254.opentune.navidrome.Navidrome
 import com.arturo254.opentune.navidrome.models.Album
 import com.arturo254.opentune.navidrome.models.Artist
 import com.arturo254.opentune.navidrome.models.ArtistAndAlbums
 import com.arturo254.opentune.utils.NavidromeAccess
+import com.arturo254.opentune.utils.dataStore
 import com.arturo254.opentune.utils.insertNavidromeAlbum
 import com.arturo254.opentune.utils.insertNavidromeSongs
 import com.arturo254.opentune.utils.navidromeAccess
@@ -60,6 +63,9 @@ constructor(
         data class Content(
             val playlistName: String,
             val songs: List<Pair<com.arturo254.opentune.navidrome.models.Song, String?>>,
+            /** Server playlists, for the selector (more than one → show it). */
+            val playlists: List<com.arturo254.opentune.navidrome.models.PlaylistRef> = emptyList(),
+            val selectedPlaylistId: String = "",
         ) : UiState
 
         data class Error(val message: String?) : UiState
@@ -120,7 +126,8 @@ constructor(
 
     /**
      * Loads the server's playlist (the one built from playlist.m3u) with its
-     * songs in the playlist's exact order.
+     * songs in the playlist's exact order. The chosen playlist is remembered;
+     * default falls back to the largest one.
      */
     fun refresh() {
         viewModelScope.launch {
@@ -134,18 +141,21 @@ constructor(
 
             Navidrome.getPlaylists(access.serverUrl, access.username, access.password)
                 .onSuccess { playlists ->
-                    // Pick the largest playlist — with a single .m3u import it
-                    // is the user's whole numbered library.
-                    val target = playlists.maxByOrNull { it.songCount }
-                    if (target == null) {
+                    if (playlists.isEmpty()) {
                         _uiState.value = UiState.NoPlaylist
                         return@launch
                     }
+                    val savedId = context.dataStore.data.first()[NavidromePlaylistIdKey]
+                    val target = playlists.firstOrNull { it.id == savedId }
+                        ?: playlists.maxByOrNull { it.songCount }
+                        ?: return@launch
                     Navidrome.getPlaylist(access.serverUrl, access.username, access.password, target.id)
                         .onSuccess { playlist ->
                             _uiState.value = UiState.Content(
                                 playlistName = playlist.name.ifBlank { target.name },
                                 songs = playlist.entry.map { it to access.coverArtUrl(it.coverArt) },
+                                playlists = playlists,
+                                selectedPlaylistId = target.id,
                             )
                         }
                         .onFailure {
@@ -157,6 +167,14 @@ constructor(
                     reportException(it)
                     _uiState.value = UiState.Error(it.message)
                 }
+        }
+    }
+
+    /** Switches the tab to another server playlist and remembers the choice. */
+    fun selectPlaylist(id: String) {
+        viewModelScope.launch {
+            context.dataStore.edit { it[NavidromePlaylistIdKey] = id }
+            refresh()
         }
     }
 

@@ -111,6 +111,10 @@ val NavidromeServerUrlKey = stringPreferencesKey("navidromeServerUrl")
 val NavidromeUsernameKey = stringPreferencesKey("navidromeUsername")
 val NavidromePasswordKey = stringPreferencesKey("navidromePassword")
 val NavidromeSaltKey = stringPreferencesKey("navidromeSalt")
+/** Server playlist shown in the Navidrome tab (Subsonic playlist id). */
+val NavidromePlaylistIdKey = stringPreferencesKey("navidromePlaylistId")
+/** Streaming bitrate cap in kbps ("0" = unlimited, server transcodes below). */
+val NavidromeMaxBitRateKey = stringPreferencesKey("navidromeMaxBitRate")
 val ScrobbleDelayPercentKey = floatPreferencesKey("scrobbleDelayPercent")
 val ScrobbleMinSongDurationKey = intPreferencesKey("scrobbleMinSongDuration")
 val ScrobbleDelaySecondsKey = intPreferencesKey("scrobbleDelaySeconds")

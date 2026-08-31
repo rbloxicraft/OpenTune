@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +41,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +64,7 @@ import com.arturo254.opentune.constants.CONTENT_TYPE_HEADER
 import com.arturo254.opentune.constants.CONTENT_TYPE_SONG
 import com.arturo254.opentune.constants.ListThumbnailSize
 import com.arturo254.opentune.playback.queues.ListQueue
+import com.arturo254.opentune.ui.component.ChipsRow
 import com.arturo254.opentune.ui.component.ListItem
 import com.arturo254.opentune.ui.component.LocalMenuState
 import com.arturo254.opentune.ui.component.NavigationTitle
@@ -82,6 +89,9 @@ fun NavidromeHomeScreen(
     val query by viewModel.query.collectAsState()
     val searchState by viewModel.searchState.collectAsState()
 
+    /** Alternate orderings of the loaded list; M3U (server order) is default. */
+    var listSort by rememberSaveable { mutableStateOf("PLAYLIST") }
+
     fun playQueue(title: String, items: List<androidx.media3.common.MediaItem>, startIndex: Int) {
         playerConnection?.playQueue(
             ListQueue(
@@ -90,6 +100,49 @@ fun NavidromeHomeScreen(
                 startIndex = startIndex,
             )
         )
+    }
+
+    val contentState = uiState as? NavidromeViewModel.UiState.Content
+
+    // Rows carry their original m3u position so playback starts at the right
+    // index regardless of the display order (playlist / title / artist).
+    val displaySongs = remember(contentState, listSort) {
+        if (contentState == null) {
+            emptyList()
+        } else {
+            val indexed = contentState.songs.mapIndexed { index, pair ->
+                Triple(index, pair.first, pair.second)
+            }
+            when (listSort) {
+                "TITLE" -> indexed.sortedBy { it.second.title }
+                "ARTIST" -> indexed.sortedBy { it.second.artist.orEmpty() }
+                else -> indexed
+            }
+        }
+    }
+
+    // Instant client-side filter over the loaded playlist (matches position
+    // number, title or artist) — no server round-trip.
+    val localMatches = remember(query, contentState) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty() || contentState == null) {
+            emptyList()
+        } else {
+            val textMatches = contentState.songs.mapIndexed { index, pair -> index to pair }
+                .filter { (_, songPair) ->
+                    val s = songPair.first
+                    s.title.contains(trimmed, ignoreCase = true) ||
+                        s.artist?.contains(trimmed, ignoreCase = true) == true ||
+                        s.album?.contains(trimmed, ignoreCase = true) == true
+                }
+            // An exact position number ("800") jumps straight to that row.
+            val position = trimmed.toIntOrNull()
+            if (position != null && position in 1..contentState.songs.size) {
+                listOf(position - 1 to contentState.songs[position - 1])
+            } else {
+                textMatches
+            }
+        }
     }
 
     LazyColumn(
@@ -116,6 +169,46 @@ fun NavidromeHomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
+        }
+
+        // Instant filter over the loaded playlist — appears while typing,
+        // before (and independently of) the server search results.
+        if (query.isNotBlank() && localMatches.isNotEmpty()) {
+            item(key = "local_matches_header", contentType = CONTENT_TYPE_HEADER) {
+                NavigationTitle(
+                    title = stringResource(R.string.navidrome_local_matches, localMatches.size),
+                )
+            }
+            itemsIndexed(
+                items = localMatches,
+                key = { _, (index, songPair) -> "ndlm_${index}_${songPair.first.id}" },
+                contentType = { _, _ -> CONTENT_TYPE_SONG },
+            ) { _, (originalIndex, songPair) ->
+                val (song, coverUrl) = songPair
+                SongRow(
+                    number = originalIndex + 1,
+                    title = song.title,
+                    artist = song.artist ?: song.album ?: "",
+                    duration = song.duration,
+                    coverUrl = coverUrl,
+                    onClick = {
+                        viewModel.playFrom(originalIndex) { title, items, start ->
+                            playQueue(title, items, start)
+                        }
+                    },
+                    onLongClick = {
+                        viewModel.persistSearchSong(song) { dbSong ->
+                            menuState.show {
+                                SongMenu(
+                                    originalSong = dbSong,
+                                    navController = navController,
+                                    onDismiss = menuState::dismiss,
+                                )
+                            }
+                        }
+                    },
+                )
+            }
         }
 
         if (searchState != null) {
@@ -197,7 +290,7 @@ fun NavidromeHomeScreen(
                     CenteredMessage(message = stringResource(R.string.navidrome_no_results))
                 }
             }
-        } else {
+        } else if (query.isBlank()) {
             when (val state = uiState) {
                 is NavidromeViewModel.UiState.Loading -> item(key = "loading", contentType = CONTENT_TYPE_HEADER) {
                     Box(
@@ -232,23 +325,79 @@ fun NavidromeHomeScreen(
                 }
 
                 is NavidromeViewModel.UiState.Content -> {
+                    // Server playlist selector (only when several exist).
+                    if (state.playlists.size > 1) {
+                        item(key = "playlist_selector", contentType = CONTENT_TYPE_HEADER) {
+                            ChipsRow(
+                                chips = state.playlists.map { it.id to it.name },
+                                currentValue = state.selectedPlaylistId,
+                                onValueUpdate = viewModel::selectPlaylist,
+                            )
+                        }
+                    }
+
                     item(key = "playlist_header", contentType = CONTENT_TYPE_HEADER) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                         ) {
-                            Text(
-                                text = state.playlistName,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${state.songs.size} " + stringResource(R.string.songs).lowercase(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = state.playlistName,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = "${state.songs.size} " + stringResource(R.string.songs).lowercase(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Box {
+                                    var showSortMenu by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { showSortMenu = true }) {
+                                        Icon(
+                                            painterResource(R.drawable.filter_alt),
+                                            contentDescription = null,
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showSortMenu,
+                                        onDismissRequest = { showSortMenu = false },
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.navidrome_sort_playlist_order)) },
+                                            onClick = { listSort = "PLAYLIST"; showSortMenu = false },
+                                            leadingIcon = {
+                                                if (listSort == "PLAYLIST") {
+                                                    Icon(painterResource(R.drawable.done), null)
+                                                }
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_by_name)) },
+                                            onClick = { listSort = "TITLE"; showSortMenu = false },
+                                            leadingIcon = {
+                                                if (listSort == "TITLE") {
+                                                    Icon(painterResource(R.drawable.done), null)
+                                                }
+                                            },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_by_artist)) },
+                                            onClick = { listSort = "ARTIST"; showSortMenu = false },
+                                            leadingIcon = {
+                                                if (listSort == "ARTIST") {
+                                                    Icon(painterResource(R.drawable.done), null)
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 8.dp),
@@ -276,19 +425,21 @@ fun NavidromeHomeScreen(
                         }
                     }
 
-                    // The flat m3u-ordered song list — one tap plays.
+                    // The flat song list — one tap plays; the leading number is
+                    // the position in the playlist.m3u order.
                     itemsIndexed(
-                        items = state.songs,
-                        key = { _, (song, _) -> "ndm3u_${song.id}" },
+                        items = displaySongs,
+                        key = { _, (_, song, _) -> "ndm3u_${song.id}" },
                         contentType = { _, _ -> CONTENT_TYPE_SONG },
-                    ) { index, (song, coverUrl) ->
+                    ) { _, (originalIndex, song, coverUrl) ->
                         SongRow(
+                            number = originalIndex + 1,
                             title = song.title,
                             artist = song.artist ?: song.album ?: "",
                             duration = song.duration,
                             coverUrl = coverUrl,
                             onClick = {
-                                viewModel.playFrom(index) { title, items, start ->
+                                viewModel.playFrom(originalIndex) { title, items, start ->
                                     playQueue(title, items, start)
                                 }
                             },
@@ -323,6 +474,7 @@ private fun SongRow(
     coverUrl: String?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    number: Int? = null,
 ) {
     val subtitleText = listOfNotNull(
         artist.takeIf { it.isNotBlank() },
@@ -341,14 +493,29 @@ private fun SongRow(
             )
         },
         thumbnailContent = {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(ListThumbnailSize)
-                    .clip(RoundedCornerShape(8.dp)),
-            )
+            if (number != null) {
+                // Playlist position instead of the cover, to spot where you
+                // are in the m3u order at a glance.
+                Box(
+                    modifier = Modifier.size(ListThumbnailSize),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = number.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                AsyncImage(
+                    model = coverUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(ListThumbnailSize)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
         },
         modifier = Modifier
             .fillMaxWidth()

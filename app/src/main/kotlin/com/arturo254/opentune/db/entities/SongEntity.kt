@@ -60,9 +60,35 @@ data class SongEntity(
     val isNavidrome: Boolean get() = id.startsWith("nd_")
 
     fun toggleLike(): SongEntity {
-        // Local on-device songs and Navidrome songs have no YouTube video to
-        // like — just flip the flag.
-        if (isLocal || isNavidrome) return localToggleLike()
+        // Local on-device songs have no YouTube video to like — just flip the flag.
+        if (isLocal) return localToggleLike()
+
+        // Navidrome songs: mirror the like as a Subsonic star on the server
+        // (visible in Feishin & other clients) instead of calling YouTube.
+        if (isNavidrome) {
+            return localToggleLike().also { updated ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    runCatching {
+                        val access = com.arturo254.opentune.utils.navidromeAccessCached()
+                        if (access != null) {
+                            val subsonicId = id.removePrefix(
+                                com.arturo254.opentune.navidrome.Navidrome.SONG_ID_PREFIX
+                            )
+                            if (updated.liked) {
+                                com.arturo254.opentune.navidrome.Navidrome.star(
+                                    access.serverUrl, access.username, access.password, subsonicId,
+                                )
+                            } else {
+                                com.arturo254.opentune.navidrome.Navidrome.unstar(
+                                    access.serverUrl, access.username, access.password, subsonicId,
+                                )
+                            }
+                        }
+                    }
+                    this.cancel()
+                }
+            }
+        }
 
         return copy(
             liked = !liked,

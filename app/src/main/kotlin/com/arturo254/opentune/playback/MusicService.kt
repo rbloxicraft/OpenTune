@@ -250,6 +250,7 @@ import com.arturo254.opentune.constants.JossRedMultimediaKey
 import com.arturo254.opentune.constants.NavidromePasswordKey
 import com.arturo254.opentune.constants.NavidromeServerUrlKey
 import com.arturo254.opentune.constants.NavidromeUsernameKey
+import com.arturo254.opentune.constants.NavidromeMaxBitRateKey
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @AndroidEntryPoint
@@ -301,6 +302,7 @@ class MusicService :
     private val navidromeServerUrl by preference(this, NavidromeServerUrlKey, "")
     private val navidromeUsername by preference(this, NavidromeUsernameKey, "")
     private val navidromePassword by preference(this, NavidromePasswordKey, "")
+    private val navidromeMaxBitRate by preference(this, NavidromeMaxBitRateKey, "0")
     private val preferredStreamClient by enumPreference(
         this,
         PlayerStreamClientKey,
@@ -4344,6 +4346,8 @@ class MusicService :
                     navidromeUsername,
                     navidromePassword,
                     mediaId.removePrefix(Navidrome.SONG_ID_PREFIX),
+                    // Optional data saver: the server transcodes below this cap.
+                    maxBitRate = navidromeMaxBitRate.toIntOrNull()?.takeIf { it > 0 },
                 ).toUri()
                 Timber.tag("Navidrome")
                     .d("Resolved %s -> %s://%s%s (key=%s, pos=%d)", mediaId, streamUri.scheme, streamUri.host, streamUri.path, dataSpec.key, dataSpec.position)

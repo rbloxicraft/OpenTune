@@ -108,6 +108,20 @@ suspend fun navidromeAccess(context: Context): NavidromeAccess? {
 }
 
 /**
+ * Synchronous variant reading the in-memory PreferenceStore cache (populated
+ * at app start). Safe to call from background coroutines; null if unconfigured
+ * or the cache hasn't filled yet.
+ */
+fun navidromeAccessCached(): NavidromeAccess? {
+    val serverUrl = PreferenceStore.get(NavidromeServerUrlKey)?.trim().orEmpty()
+    val username = PreferenceStore.get(NavidromeUsernameKey)?.trim().orEmpty()
+    val password = PreferenceStore.get(NavidromePasswordKey).orEmpty()
+    val salt = PreferenceStore.get(NavidromeSaltKey).orEmpty()
+    if (serverUrl.isBlank() || username.isBlank() || password.isBlank() || salt.isBlank()) return null
+    return NavidromeAccess(serverUrl, username, password, salt)
+}
+
+/**
  * Maps a Subsonic artist reference to a stable app-side artist id.
  * Subsonic song/album payloads sometimes omit artistId, so the name is
  * used as a deterministic fallback.
@@ -127,6 +141,8 @@ private fun NavidromeAccess.toSongEntity(song: Song, album: AlbumWithSongs): Son
         albumId = Navidrome.ALBUM_ID_PREFIX + album.id,
         albumName = album.name,
         year = album.year ?: song.year,
+        // Server-side starred state shows up as liked locally.
+        liked = song.starred != null,
         // inLibrary stays null: songs are browsable from the Navidrome tab but
         // don't pollute the main local library lists.
         inLibrary = null,
@@ -214,6 +230,7 @@ suspend fun MusicDatabase.insertNavidromeSongs(
                 albumId = song.albumId?.let { Navidrome.ALBUM_ID_PREFIX + it },
                 albumName = song.album,
                 year = song.year,
+                liked = song.starred != null,
                 inLibrary = null,
             )
         )

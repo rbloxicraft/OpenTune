@@ -51,8 +51,10 @@ import com.arturo254.opentune.R
 import com.arturo254.opentune.constants.NavidromePasswordKey
 import com.arturo254.opentune.constants.NavidromeServerUrlKey
 import com.arturo254.opentune.constants.NavidromeUsernameKey
+import com.arturo254.opentune.constants.NavidromeMaxBitRateKey
 import com.arturo254.opentune.navidrome.Navidrome
 import com.arturo254.opentune.ui.component.IconButton
+import com.arturo254.opentune.ui.component.ListPreference
 import com.arturo254.opentune.ui.component.PreferenceEntry
 import com.arturo254.opentune.ui.component.PreferenceGroupTitle
 import com.arturo254.opentune.ui.component.TextFieldDialog
@@ -72,6 +74,8 @@ fun NavidromeSettings(
     var serverUrl by rememberPreference(NavidromeServerUrlKey, "")
     var username by rememberPreference(NavidromeUsernameKey, "")
     var password by rememberPreference(NavidromePasswordKey, "")
+
+    val (maxBitRate, onMaxBitRateChange) = rememberPreference(NavidromeMaxBitRateKey, "0")
 
     val isConfigured = serverUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
 
@@ -234,6 +238,18 @@ fun NavidromeSettings(
 
         PreferenceGroupTitle(
             title = stringResource(R.string.connection),
+        )
+
+        ListPreference(
+            title = { Text(stringResource(R.string.navidrome_data_saver)) },
+            icon = { Icon(painterResource(R.drawable.wifi), null) },
+            selectedValue = maxBitRate,
+            values = listOf("0", "320", "192", "128", "96", "64"),
+            valueText = { value ->
+                if (value == "0") stringResource(R.string.navidrome_bitrate_unlimited)
+                else "$value kbps"
+            },
+            onValueSelected = onMaxBitRateChange,
         )
 
         PreferenceEntry(

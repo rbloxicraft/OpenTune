@@ -598,7 +598,9 @@ fun SongMenu(
             }
         }
 
-        if (event != null || playlistSong != null || !isNonYouTube) {
+        // Cache/download entries apply to YouTube AND Navidrome songs, only
+        // local on-device files are excluded.
+        if (event != null || playlistSong != null || !song.song.isLocal) {
             item {
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -688,7 +690,7 @@ fun SongMenu(
                     }
 
                     // Caching/downloading a copy of a file that's already on-device is meaningless.
-                    if (!isNonYouTube) {
+                    if (!song.song.isLocal) {
                         if (isFromCache) {
                             ListItem(
                                 headlineContent = {
