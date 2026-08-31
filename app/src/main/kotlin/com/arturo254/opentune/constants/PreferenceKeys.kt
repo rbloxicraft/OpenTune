@@ -182,6 +182,10 @@ val DiscordInfoDismissedKey = booleanPreferencesKey("discordInfoDismissed")
 val DiscordUsernameKey = stringPreferencesKey("discordUsername")
 val DiscordNameKey = stringPreferencesKey("discordName")
 val EnableDiscordRPCKey = booleanPreferencesKey("discordRPCEnable")
+// Official Discord Social SDK path (OAuth2 account-linking, no token scraping) — off by
+// default until validated; the legacy kizzy-based path above remains the default backend.
+val DiscordSocialSdkEnabledKey = booleanPreferencesKey("discordSocialSdkEnabled")
+val DiscordSocialSdkLinkedKey = booleanPreferencesKey("discordSocialSdkLinked")
 // Discord activity customization keys
 val DiscordActivityNameKey = stringPreferencesKey("discordActivityName")
 val DiscordActivityDetailsKey = stringPreferencesKey("discordActivityDetails")
@@ -417,7 +421,8 @@ enum class PlayerDesignStyle {
     V5,
     V6,
     V7,
-    V8
+    V8,
+    SPOTIFY
 }
 
 enum class PlayerBackgroundStyle {
@@ -429,6 +434,7 @@ enum class PlayerBackgroundStyle {
     BLUR_GRADIENT,
     GLOW,
     GLOW_ANIMATED,
+    SPOTIFY
 }
 
 // Keys for customized background
