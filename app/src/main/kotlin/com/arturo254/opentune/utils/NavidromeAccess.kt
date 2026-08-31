@@ -9,6 +9,7 @@
 package com.arturo254.opentune.utils
 
 import android.content.Context
+import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
 import com.arturo254.opentune.constants.NavidromePasswordKey
 import com.arturo254.opentune.constants.NavidromeSaltKey
@@ -45,6 +46,49 @@ data class NavidromeAccess(
 
     fun streamUrl(songId: String): String =
         Navidrome.streamUrl(serverUrl, username, password, songId, salt = salt)
+
+    /**
+     * Builds a playable MediaItem straight from Subsonic data — no DB row
+     * needed beforehand (MusicService.recoverSong persists metadata lazily
+     * as each song plays).
+     */
+    fun toMediaItem(song: Song): androidx.media3.common.MediaItem {
+        val songId = Navidrome.SONG_ID_PREFIX + song.id
+        val artistName = song.artist.orEmpty()
+        val metadata = com.arturo254.opentune.models.MediaMetadata(
+            id = songId,
+            title = song.title,
+            artists = listOf(
+                com.arturo254.opentune.models.MediaMetadata.Artist(
+                    id = song.artistId?.let { Navidrome.ARTIST_ID_PREFIX + it },
+                    name = artistName,
+                )
+            ),
+            duration = song.duration ?: com.arturo254.opentune.models.MediaMetadata.UNKNOWN_DURATION,
+            thumbnailUrl = coverArtUrl(song.coverArt),
+            album = song.albumId?.let {
+                com.arturo254.opentune.models.MediaMetadata.Album(
+                    id = Navidrome.ALBUM_ID_PREFIX + it,
+                    title = song.album.orEmpty(),
+                )
+            },
+        )
+        return androidx.media3.common.MediaItem.Builder()
+            .setMediaId(songId)
+            .setUri(songId)
+            .setCustomCacheKey(songId)
+            .setTag(metadata)
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(artistName)
+                    .setAlbumTitle(song.album)
+                    .setArtworkUri(coverArtUrl(song.coverArt)?.toUri())
+                    .setMediaType(androidx.media3.common.MediaMetadata.MEDIA_TYPE_MUSIC)
+                    .build()
+            )
+            .build()
+    }
 }
 
 /** Returns the stored Navidrome credentials, or null when not configured. */

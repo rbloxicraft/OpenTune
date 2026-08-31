@@ -14,7 +14,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import com.arturo254.opentune.db.MusicDatabase
-import com.arturo254.opentune.extensions.toMediaItem
 import com.arturo254.opentune.navidrome.Navidrome
 import com.arturo254.opentune.navidrome.models.Album
 import com.arturo254.opentune.navidrome.models.Artist
@@ -41,8 +40,9 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Backs the dedicated Navidrome tab: library overview (recent albums,
- * artists) plus debounced server-side search over songs/albums/artists.
+ * Backs the dedicated Navidrome tab: the server's main playlist (imported
+ * from the user's playlist.m3u) shown as a flat, directly playable song list
+ * in its exact order, plus debounced server-side search.
  */
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -56,9 +56,10 @@ constructor(
     sealed interface UiState {
         data object Loading : UiState
         data object NotConfigured : UiState
+        data object NoPlaylist : UiState
         data class Content(
-            val albums: List<Pair<Album, String?>>,
-            val artists: List<Pair<Artist, String?>>,
+            val playlistName: String,
+            val songs: List<Pair<com.arturo254.opentune.navidrome.models.Song, String?>>,
         ) : UiState
 
         data class Error(val message: String?) : UiState
@@ -72,9 +73,6 @@ constructor(
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState
-
-    private val _albumListType = MutableStateFlow(Navidrome.AlbumListType.NEWEST)
-    val albumListType: StateFlow<Navidrome.AlbumListType> = _albumListType
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query
@@ -120,13 +118,10 @@ constructor(
         _query.value = value
     }
 
-    /** Changes the album ordering (server-side via getAlbumList2) and reloads. */
-    fun setAlbumListType(type: Navidrome.AlbumListType) {
-        if (_albumListType.value == type) return
-        _albumListType.value = type
-        refresh()
-    }
-
+    /**
+     * Loads the server's playlist (the one built from playlist.m3u) with its
+     * songs in the playlist's exact order.
+     */
     fun refresh() {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
@@ -137,66 +132,75 @@ constructor(
                 return@launch
             }
 
-            val albumsResult = Navidrome.getAlbumList2(
-                access.serverUrl,
-                access.username,
-                access.password,
-                type = _albumListType.value,
-                size = 30,
-            )
-            val artistsResult = Navidrome.getArtists(
-                access.serverUrl,
-                access.username,
-                access.password,
-            )
+            Navidrome.getPlaylists(access.serverUrl, access.username, access.password)
+                .onSuccess { playlists ->
+                    // Pick the largest playlist — with a single .m3u import it
+                    // is the user's whole numbered library.
+                    val target = playlists.maxByOrNull { it.songCount }
+                    if (target == null) {
+                        _uiState.value = UiState.NoPlaylist
+                        return@launch
+                    }
+                    Navidrome.getPlaylist(access.serverUrl, access.username, access.password, target.id)
+                        .onSuccess { playlist ->
+                            _uiState.value = UiState.Content(
+                                playlistName = playlist.name.ifBlank { target.name },
+                                songs = playlist.entry.map { it to access.coverArtUrl(it.coverArt) },
+                            )
+                        }
+                        .onFailure {
+                            reportException(it)
+                            _uiState.value = UiState.Error(it.message)
+                        }
+                }
+                .onFailure {
+                    reportException(it)
+                    _uiState.value = UiState.Error(it.message)
+                }
+        }
+    }
 
-            albumsResult.onSuccess { albums ->
-                _uiState.value = artistsResult.fold(
-                    onSuccess = { artists ->
-                        UiState.Content(
-                            albums = albums.map { it to access.coverArtUrl(it.coverArt) },
-                            artists = artists.allArtists.map { it to access.coverArtUrl(it.coverArt) },
-                        )
-                    },
-                    onFailure = {
-                        reportException(it)
-                        UiState.Error(it.message)
-                    },
-                )
-            }.onFailure {
-                reportException(it)
-                _uiState.value = UiState.Error(it.message)
+    /**
+     * Plays the loaded playlist starting at [index]. Media items are built
+     * straight from Subsonic data — the DB fills in lazily as songs play.
+     */
+    fun playFrom(
+        index: Int,
+        onReady: (title: String, items: List<MediaItem>, startIndex: Int) -> Unit,
+    ) {
+        val state = _uiState.value
+        if (state !is UiState.Content) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val access = navidromeAccess(context) ?: return@launch
+            val items = state.songs.map { (song, _) -> access.toMediaItem(song) }
+            withContext(Dispatchers.Main) {
+                onReady(state.playlistName, items, index)
             }
         }
     }
 
     /**
-     * Persists the current search-result songs and hands the resulting
-     * media items back to the UI, which builds the playing queue.
+     * Plays the current search results starting at [index] — media items are
+     * built from Subsonic data without touching the DB.
      */
     fun playSearchResults(
         index: Int,
-        onReady: (List<MediaItem>) -> Unit,
+        onReady: (title: String, items: List<MediaItem>, startIndex: Int) -> Unit,
     ) {
+        val results = _searchState.value?.songs.orEmpty()
+        if (results.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
-            val songs = _searchState.value?.songs.orEmpty()
-            if (songs.isEmpty()) return@launch
-
             val access = navidromeAccess(context) ?: return@launch
-            database.insertNavidromeSongs(songs.map { it.first }, access)
-
-            val items = songs.mapNotNull { (song, _) ->
-                database.song(Navidrome.SONG_ID_PREFIX + song.id).first()?.toMediaItem()
-            }
+            val items = results.map { (song, _) -> access.toMediaItem(song) }
             withContext(Dispatchers.Main) {
-                onReady(items)
+                onReady(_query.value, items, index)
             }
         }
     }
 
     /**
-     * Persists one search-result song so it can be handed to SongMenu
-     * (add to playlist, play next, add to queue…).
+     * Persists one song so it can be handed to SongMenu (add to playlist,
+     * play next, add to queue…).
      */
     fun persistSearchSong(
         song: com.arturo254.opentune.navidrome.models.Song,

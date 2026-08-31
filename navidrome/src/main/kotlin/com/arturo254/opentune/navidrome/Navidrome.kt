@@ -12,6 +12,8 @@ import com.arturo254.opentune.navidrome.models.Album
 import com.arturo254.opentune.navidrome.models.AlbumWithSongs
 import com.arturo254.opentune.navidrome.models.ArtistAndAlbums
 import com.arturo254.opentune.navidrome.models.Artists
+import com.arturo254.opentune.navidrome.models.PlaylistRef
+import com.arturo254.opentune.navidrome.models.PlaylistWithSongs
 import com.arturo254.opentune.navidrome.models.SearchResult3
 import com.arturo254.opentune.navidrome.models.SubsonicEnvelope
 import io.ktor.client.HttpClient
@@ -255,6 +257,26 @@ object Navidrome {
             "songCount" to songCount.toString(),
         ),
     ).map { it.searchResult3 ?: SearchResult3() }
+
+    /** Lists the server's playlists (e.g. the one imported from playlist.m3u). */
+    suspend fun getPlaylists(serverUrl: String, username: String, password: String): Result<List<PlaylistRef>> =
+        request(serverUrl, username, password, "getPlaylists.view").map {
+            it.playlists?.playlist ?: emptyList()
+        }
+
+    /** Fetches one playlist with its songs, in playlist order. */
+    suspend fun getPlaylist(
+        serverUrl: String,
+        username: String,
+        password: String,
+        id: String,
+    ): Result<PlaylistWithSongs> = request(
+        serverUrl,
+        username,
+        password,
+        "getPlaylist.view",
+        mapOf("id" to id),
+    ).map { it.playlist ?: PlaylistWithSongs(id = id) }
 
     /** Direct streaming URL for a song, suitable for media players. */
     fun streamUrl(

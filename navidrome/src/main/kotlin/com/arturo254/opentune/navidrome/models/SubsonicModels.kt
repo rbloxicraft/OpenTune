@@ -30,6 +30,8 @@ data class SubsonicResponse(
     val searchResult3: SearchResult3? = null,
     val artist: ArtistAndAlbums? = null,
     val album: AlbumWithSongs? = null,
+    val playlists: Playlists? = null,
+    val playlist: PlaylistWithSongs? = null,
 )
 
 @Serializable
@@ -117,6 +119,31 @@ data class SearchResult3(
     val artist: List<Artist> = emptyList(),
     val album: List<Album> = emptyList(),
     val song: List<Song> = emptyList(),
+)
+
+/** Entry of getPlaylists. */
+@Serializable
+data class Playlists(
+    val playlist: List<PlaylistRef> = emptyList(),
+)
+
+@Serializable
+data class PlaylistRef(
+    val id: String = "",
+    val name: String = "",
+    val songCount: Int = 0,
+    val duration: Int = 0,
+    val owner: String? = null,
+)
+
+/** Response of getPlaylist: the playlist with its songs in playlist order. */
+@Serializable
+data class PlaylistWithSongs(
+    val id: String = "",
+    val name: String = "",
+    val songCount: Int = 0,
+    val duration: Int = 0,
+    val entry: List<Song> = emptyList(),
 )
 
 @Serializable

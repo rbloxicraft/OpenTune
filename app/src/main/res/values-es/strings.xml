@@ -507,6 +507,7 @@
     <string name="navidrome_artist_album_count">%1$d álbumes</string>
     <string name="navidrome_search_hint">Busca en tu biblioteca de Navidrome…</string>
     <string name="navidrome_no_results">Sin resultados</string>
+    <string name="navidrome_no_playlist">No se encontró ninguna playlist en el servidor — importa tu playlist.m3u en Navidrome</string>
     <string name="navidrome_sort_recently_played">Reproducidos recientemente</string>
     <string name="navidrome_sort_frequently_played">Reproducidos con frecuencia</string>
     <string name="navidrome_sort_random">Aleatorio</string>
