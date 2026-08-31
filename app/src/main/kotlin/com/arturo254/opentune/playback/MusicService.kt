@@ -72,9 +72,14 @@ import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.flac.FlacExtractor
 import androidx.media3.extractor.mkv.MatroskaExtractor
+import androidx.media3.extractor.mp3.Mp3Extractor
 import androidx.media3.extractor.mp4.FragmentedMp4Extractor
 import androidx.media3.extractor.mp4.Mp4Extractor
+import androidx.media3.extractor.ogg.OggExtractor
+import androidx.media3.extractor.ts.AdtsExtractor
+import androidx.media3.extractor.wav.WavExtractor
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
@@ -131,6 +136,7 @@ import com.arturo254.opentune.constants.StopMusicOnTaskClearKey
 import com.arturo254.opentune.constants.WakelockKey
 import com.arturo254.opentune.constants.YtmSyncKey
 import com.arturo254.opentune.db.MusicDatabase
+import com.arturo254.opentune.navidrome.Navidrome
 import com.arturo254.opentune.db.entities.Event
 import com.arturo254.opentune.db.entities.FormatEntity
 import com.arturo254.opentune.db.entities.LyricsEntity
@@ -171,6 +177,7 @@ import com.arturo254.opentune.utils.YTPlayerUtils
 import com.arturo254.opentune.utils.StreamClientUtils
 import com.arturo254.opentune.utils.dataStore
 import com.arturo254.opentune.utils.enumPreference
+import com.arturo254.opentune.utils.preference
 import com.arturo254.opentune.utils.get
 import com.arturo254.opentune.utils.getAsync
 import com.arturo254.opentune.utils.getPresenceIntervalMillis
@@ -238,6 +245,9 @@ import android.os.Build
 import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import com.arturo254.opentune.constants.JossRedMultimediaKey
+import com.arturo254.opentune.constants.NavidromePasswordKey
+import com.arturo254.opentune.constants.NavidromeServerUrlKey
+import com.arturo254.opentune.constants.NavidromeUsernameKey
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @AndroidEntryPoint
@@ -286,6 +296,9 @@ class MusicService :
         AudioQualityKey,
         com.arturo254.opentune.constants.AudioQuality.AUTO
     )
+    private val navidromeServerUrl by preference(this, NavidromeServerUrlKey, "")
+    private val navidromeUsername by preference(this, NavidromeUsernameKey, "")
+    private val navidromePassword by preference(this, NavidromePasswordKey, "")
     private val preferredStreamClient by enumPreference(
         this,
         PlayerStreamClientKey,
@@ -4310,6 +4323,29 @@ class MusicService :
 
             val mediaId = dataSpec.key ?: error("No media id")
 
+            // Navidrome (Subsonic) songs stream straight from the user's own
+            // server: the URL is signed and permanent, and the server handles
+            // HTTP ranges natively, so skip YouTube resolution and chunking.
+            if (mediaId.startsWith(Navidrome.SONG_ID_PREFIX)) {
+                if (navidromeServerUrl.isBlank() || navidromeUsername.isBlank() || navidromePassword.isBlank()) {
+                    Timber.tag("Navidrome").e("Cannot resolve %s: server not configured", mediaId)
+                    throw PlaybackException(
+                        getString(R.string.navidrome_not_configured),
+                        null,
+                        PlaybackException.ERROR_CODE_REMOTE_ERROR,
+                    )
+                }
+                val streamUri = Navidrome.streamUrl(
+                    navidromeServerUrl,
+                    navidromeUsername,
+                    navidromePassword,
+                    mediaId.removePrefix(Navidrome.SONG_ID_PREFIX),
+                ).toUri()
+                Timber.tag("Navidrome")
+                    .d("Resolved %s -> %s://%s%s (key=%s, pos=%d)", mediaId, streamUri.scheme, streamUri.host, streamUri.path, dataSpec.key, dataSpec.position)
+                return@Factory dataSpec.withUri(streamUri)
+            }
+
             val requiredCachedLength =
                 if (dataSpec.length >= 0) {
                     dataSpec.length
@@ -4603,20 +4639,49 @@ class MusicService :
             object : ExtractorsFactory {
                 private val defaultExtractorsFactory = DefaultExtractorsFactory()
 
-                override fun createExtractors(): Array<Extractor> =
-                    arrayOf(Mp4Extractor(), FragmentedMp4Extractor(), MatroskaExtractor())
+                override fun createExtractors(): Array<Extractor> = arrayOf(
+                    // YouTube serves mp4/webm — sniffed first to keep the existing
+                    // behavior unchanged for those streams.
+                    Mp4Extractor(),
+                    FragmentedMp4Extractor(),
+                    MatroskaExtractor(),
+                    // Navidrome/Subsonic streams and local files can hold about
+                    // anything the library does; these are only reached when the
+                    // three above fail to match, so they cannot misdetect YouTube.
+                    Mp3Extractor(),
+                    FlacExtractor(),
+                    OggExtractor(),
+                    WavExtractor(),
+                    AdtsExtractor(),
+                )
 
                 override fun createExtractors(
                     uri: android.net.Uri,
                     responseHeaders: MutableMap<String, MutableList<String>>,
-                ): Array<Extractor> =
+                ): Array<Extractor> {
                     // Local on-device files can be mp3/flac/ogg/wav/etc, unlike YouTube's
                     // mp4/webm streams, so fall back to the full set of extractors for them.
-                    if (uri.scheme == "content" || uri.scheme == "file") {
+                    val isLocalFile = uri.scheme == "content" || uri.scheme == "file"
+                    // Navidrome streams whatever format the library holds (mp3/flac/ogg…).
+                    // The uri here can still be the original media-item id, so detect the
+                    // Subsonic stream via the audio/* Content-Type. HTTP/2 responses use
+                    // lowercase header names, so the lookup must be case-insensitive.
+                    // YouTube serves audio/mp4 and audio/webm, which stay restricted.
+                    val contentType = responseHeaders.entries
+                        .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+                        ?.value?.firstOrNull()
+                    val isSubsonicAudio = contentType != null &&
+                            contentType.startsWith("audio/", ignoreCase = true) &&
+                            !contentType.startsWith("audio/mp4", ignoreCase = true) &&
+                            !contentType.startsWith("audio/webm", ignoreCase = true) &&
+                            !contentType.startsWith("audio/x-m4a", ignoreCase = true)
+                    val hasRestPath = uri.path?.contains("/rest/") == true
+                    return if (isLocalFile || isSubsonicAudio || hasRestPath) {
                         defaultExtractorsFactory.createExtractors(uri, responseHeaders)
                     } else {
                         createExtractors()
                     }
+                }
             },
         )
 

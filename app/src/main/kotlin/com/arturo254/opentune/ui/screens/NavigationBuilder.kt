@@ -82,6 +82,7 @@ import com.arturo254.opentune.ui.screens.settings.DebugSettings
 import com.arturo254.opentune.ui.screens.settings.IntegrationScreen
 import com.arturo254.opentune.ui.screens.settings.LastFMSettings
 import com.arturo254.opentune.ui.screens.settings.MusicTogetherScreen
+import com.arturo254.opentune.ui.screens.settings.NavidromeSettings
 import com.arturo254.opentune.ui.screens.settings.PalettePickerScreen
 import com.arturo254.opentune.ui.screens.settings.PlayerSettings
 import com.arturo254.opentune.ui.screens.settings.PoTokenScreen
@@ -388,6 +389,24 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/lastfm") {
         LastFMSettings(navController, scrollBehavior)
+    }
+    composable("settings/navidrome") {
+        NavidromeSettings(navController, scrollBehavior)
+    }
+    composable(Screens.Navidrome.route) {
+        com.arturo254.opentune.ui.screens.navidrome.NavidromeHomeScreen(navController)
+    }
+    composable(
+        route = "navidrome_album/{albumId}",
+        arguments = listOf(navArgument("albumId") { type = NavType.StringType }),
+    ) {
+        com.arturo254.opentune.ui.screens.navidrome.NavidromeAlbumScreen(navController, scrollBehavior)
+    }
+    composable(
+        route = "navidrome_artist/{artistId}",
+        arguments = listOf(navArgument("artistId") { type = NavType.StringType }),
+    ) {
+        com.arturo254.opentune.ui.screens.navidrome.NavidromeArtistScreen(navController, scrollBehavior)
     }
     composable("settings/discord/experimental") {
         com.arturo254.opentune.ui.screens.settings.DiscordExperimental(navController)

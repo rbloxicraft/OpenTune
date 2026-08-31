@@ -385,6 +385,10 @@ fun SongMenu(
     val shareText = stringResource(R.string.share)
     val editText = stringResource(R.string.edit)
 
+    // On-device files and Navidrome songs have no YouTube counterpart, so
+    // YouTube-only actions (radio, share link, refetch, codec info) are hidden.
+    val isNonYouTube = song.song.isLocal || song.song.isNavidrome
+
     val primaryActions = remember(
         song,
         startRadioText,
@@ -398,7 +402,7 @@ fun SongMenu(
     ) {
         listOfNotNull(
             // Radio and sharing a YouTube Music link are meaningless for on-device files.
-            if (song.song.isLocal) {
+            if (isNonYouTube) {
                 null
             } else {
                 NewAction(
@@ -459,7 +463,7 @@ fun SongMenu(
                 text = addToPlaylistText,
                 onClick = { showChoosePlaylistDialog = true },
             ),
-            if (song.song.isLocal) {
+            if (isNonYouTube) {
                 null
             } else {
                 NewAction(
@@ -594,7 +598,7 @@ fun SongMenu(
             }
         }
 
-        if (event != null || playlistSong != null || !song.song.isLocal) {
+        if (event != null || playlistSong != null || !isNonYouTube) {
             item {
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -684,7 +688,7 @@ fun SongMenu(
                     }
 
                     // Caching/downloading a copy of a file that's already on-device is meaningless.
-                    if (!song.song.isLocal) {
+                    if (!isNonYouTube) {
                         if (isFromCache) {
                             ListItem(
                                 headlineContent = {
@@ -832,7 +836,7 @@ fun SongMenu(
         }
 
         // Browsing a YouTube-style artist/album page doesn't apply to on-device files.
-        if (!song.song.isLocal) {
+        if (!isNonYouTube) {
         item {
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -887,8 +891,9 @@ fun SongMenu(
         }
         }
 
-        // Refetching from YouTube and showing stream/codec details don't apply to a local file.
-        if (!song.song.isLocal) {
+        // Refetching from YouTube doesn't apply to local files or Navidrome
+        // songs, but the Details sheet does (Navidrome metadata is stored in
+        // the format table too).
         item {
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -896,36 +901,38 @@ fun SongMenu(
         item {
             MenuSurfaceSection(modifier = Modifier.padding(vertical = 6.dp)) {
                 Column {
-                    ListItem(
-                        headlineContent = { Text(text = stringResource(R.string.refetch)) },
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(R.drawable.sync),
-                                contentDescription = null,
-                                modifier = Modifier.graphicsLayer(rotationZ = rotationAnimation),
-                            )
-                        },
-                        modifier =
-                            Modifier.clickable {
-                                refetchIconDegree -= 360
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    YouTube.queue(listOf(song.id)).onSuccess {
-                                        val newSong = it.firstOrNull()
-                                        if (newSong != null) {
-                                            database.transaction {
-                                                update(song, newSong.toMediaMetadata())
-                                            }
+                    if (!isNonYouTube) {
+                        ListItem(
+                            headlineContent = { Text(text = stringResource(R.string.refetch)) },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(R.drawable.sync),
+                                    contentDescription = null,
+                                    modifier = Modifier.graphicsLayer(rotationZ = rotationAnimation),
+                                )
+                            },
+                            modifier =
+                                Modifier.clickable {
+                                    refetchIconDegree -= 360
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        YouTube.queue(listOf(song.id)).onSuccess {
+                                            val newSong = it.firstOrNull()
+                                            if (newSong != null) {
+                                                database.transaction {
+                                    update(song, newSong.toMediaMetadata())
+                                }
                                         }
                                     }
                                 }
                             },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        )
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                    )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 56.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    }
 
                     ListItem(
                         headlineContent = { Text(text = stringResource(R.string.details)) },
@@ -946,7 +953,6 @@ fun SongMenu(
                     )
                 }
             }
-        }
         }
     }
 }

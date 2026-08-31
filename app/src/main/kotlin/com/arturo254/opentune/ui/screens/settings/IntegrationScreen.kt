@@ -79,6 +79,15 @@ fun IntegrationScreen(
             },
         )
 
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.navidrome_server)) },
+            description = stringResource(R.string.navidrome_server_description),
+            icon = { Icon(painterResource(R.drawable.library_music), null) },
+            onClick = {
+                navController.navigate("settings/navidrome")
+            },
+        )
+
         PreferenceGroupTitle(
             title = stringResource(R.string.scrobbling),
         )

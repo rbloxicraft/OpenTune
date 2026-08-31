@@ -67,12 +67,18 @@ fun ShowMediaInfo(videoId: String) {
     val playerConnection = LocalPlayerConnection.current
     val context = LocalContext.current
 
+    // Navidrome songs have no YouTube description/stats — only the local
+    // details card (format table) applies to them.
+    val isNavidromeSong = videoId.startsWith("nd_")
+
     var info by remember { mutableStateOf<MediaInfo?>(null) }
     var song by remember { mutableStateOf<Song?>(null) }
     var currentFormat by remember { mutableStateOf<FormatEntity?>(null) }
 
     LaunchedEffect(videoId) {
-        info = YouTube.getMediaInfo(videoId).getOrNull()
+        if (!isNavidromeSong) {
+            info = YouTube.getMediaInfo(videoId).getOrNull()
+        }
     }
 
     LaunchedEffect(videoId) {
@@ -129,24 +135,35 @@ fun ShowMediaInfo(videoId: String) {
                         )
 
                         val extendedList = baseList + if (currentFormat != null) {
-                            listOf(
-                                Triple(R.drawable.code, "Itag", currentFormat?.itag?.toString()),
-                                Triple(R.drawable.memory, stringResource(R.string.mime_type), currentFormat?.mimeType),
-                                Triple(R.drawable.tune, stringResource(R.string.codecs), currentFormat?.codecs),
-                                Triple(R.drawable.graphic_eq, stringResource(R.string.bitrate),
-                                    currentFormat?.bitrate?.let { "${it / 1000} Kbps" }),
-                                Triple(R.drawable.equalizer, stringResource(R.string.sample_rate),
-                                    currentFormat?.sampleRate?.let { "$it Hz" }),
-                                Triple(R.drawable.volume_up, stringResource(R.string.volume),
-                                    "${(playerConnection?.player?.volume?.times(100))?.toInt()}%"),
-                                Triple(
-                                    R.drawable.folder,
-                                    stringResource(R.string.file_size),
-                                    currentFormat?.contentLength?.let {
-                                        Formatter.formatShortFileSize(context, it)
-                                    }
+                            buildList {
+                                // YouTube-only field; Navidrome rows store 0.
+                                if (currentFormat?.itag != 0) {
+                                    add(Triple(R.drawable.code, "Itag", currentFormat?.itag?.toString()))
+                                }
+                                add(Triple(R.drawable.memory, stringResource(R.string.mime_type), currentFormat?.mimeType))
+                                add(Triple(R.drawable.tune, stringResource(R.string.codecs), currentFormat?.codecs))
+                                add(
+                                    Triple(R.drawable.graphic_eq, stringResource(R.string.bitrate),
+                                        currentFormat?.bitrate?.let { "${it / 1000} Kbps" })
                                 )
-                            )
+                                add(
+                                    Triple(R.drawable.equalizer, stringResource(R.string.sample_rate),
+                                        currentFormat?.sampleRate?.let { "$it Hz" })
+                                )
+                                add(
+                                    Triple(R.drawable.volume_up, stringResource(R.string.volume),
+                                        "${(playerConnection?.player?.volume?.times(100))?.toInt()}%")
+                                )
+                                add(
+                                    Triple(
+                                        R.drawable.folder,
+                                        stringResource(R.string.file_size),
+                                        currentFormat?.contentLength?.let {
+                                            Formatter.formatShortFileSize(context, it)
+                                        }
+                                    )
+                                )
+                            }
                         } else emptyList()
 
                         extendedList.forEach { (icon, label, value) ->
@@ -168,6 +185,8 @@ fun ShowMediaInfo(videoId: String) {
         /* ============================================================
          * MEDIA INFO
          * ============================================================ */
+
+        if (!isNavidromeSong) {
 
         item {
             Spacer(Modifier.height(24.dp))
@@ -261,6 +280,7 @@ fun ShowMediaInfo(videoId: String) {
                     }
                 }
             }
+        }
         }
     }
 }

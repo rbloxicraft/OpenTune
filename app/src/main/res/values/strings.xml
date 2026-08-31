@@ -562,6 +562,27 @@ OpenTune will only extract your token, and everything else is stored locally.</s
     <string name="username">Username</string>
     <string name="password">Password</string>
     <string name="logging_in">Logging in…</string>
+    <!-- Navidrome -->
+    <string name="navidrome_server">Navidrome Server</string>
+    <string name="navidrome_server_description">Connect to your self-hosted Navidrome music server (Subsonic API)</string>
+    <string name="navidrome_server_url">Server address</string>
+    <string name="navidrome_server_url_hint">http://192.168.1.10:4533</string>
+    <string name="connection">Connection</string>
+    <string name="test_connection">Test connection</string>
+    <string name="testing_connection">Testing connection…</string>
+    <string name="connection_successful">Connection successful</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="navidrome_not_configured">Enter a server address, username and password first</string>
+    <string name="navidrome">Navidrome</string>
+    <string name="navidrome_recent_albums">Recently added</string>
+    <string name="navidrome_configure_prompt">Connect your Navidrome server to browse and play your library</string>
+    <string name="navidrome_open_settings">Server settings</string>
+    <string name="navidrome_artist_album_count">%1$d albums</string>
+    <string name="navidrome_search_hint">Search your Navidrome library…</string>
+    <string name="navidrome_no_results">No results</string>
+    <string name="navidrome_sort_recently_played">Recently played</string>
+    <string name="navidrome_sort_frequently_played">Frequently played</string>
+    <string name="navidrome_sort_random">Random</string>
     <!-- ListenBrainz -->
     <string name="listenbrainz_scrobbling">ListenBrainz scrobbling</string>
     <string name="listenbrainz_scrobbling_description">Enable submitting now-playing and finished listens to ListenBrainz</string>

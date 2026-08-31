@@ -56,9 +56,13 @@ data class SongEntity(
         likedDate = if (!liked) LocalDateTime.now() else null,
     )
 
+    /** True when this row comes from the user's Navidrome (Subsonic) server. */
+    val isNavidrome: Boolean get() = id.startsWith("nd_")
+
     fun toggleLike(): SongEntity {
-        // Local on-device songs have no YouTube video to like — just flip the flag.
-        if (isLocal) return localToggleLike()
+        // Local on-device songs and Navidrome songs have no YouTube video to
+        // like — just flip the flag.
+        if (isLocal || isNavidrome) return localToggleLike()
 
         return copy(
             liked = !liked,

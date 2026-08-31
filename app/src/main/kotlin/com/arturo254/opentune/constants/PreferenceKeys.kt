@@ -105,6 +105,12 @@ val LastFMSessionKey = stringPreferencesKey("lastfmSession")
 val LastFMUsernameKey = stringPreferencesKey("lastfmUsername")
 val EnableLastFMScrobblingKey = booleanPreferencesKey("lastfmScrobblingEnable")
 val LastFMUseNowPlaying = booleanPreferencesKey("lastfmUseNowPlaying")
+
+// Navidrome (Subsonic compatible) server
+val NavidromeServerUrlKey = stringPreferencesKey("navidromeServerUrl")
+val NavidromeUsernameKey = stringPreferencesKey("navidromeUsername")
+val NavidromePasswordKey = stringPreferencesKey("navidromePassword")
+val NavidromeSaltKey = stringPreferencesKey("navidromeSalt")
 val ScrobbleDelayPercentKey = floatPreferencesKey("scrobbleDelayPercent")
 val ScrobbleMinSongDurationKey = intPreferencesKey("scrobbleMinSongDuration")
 val ScrobbleDelaySecondsKey = intPreferencesKey("scrobbleDelaySeconds")

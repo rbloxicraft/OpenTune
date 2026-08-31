@@ -55,7 +55,14 @@ sealed class Screens(
         route = "mood_and_genres"
     )
 
+    object Navidrome : Screens(
+        titleId = R.string.navidrome,
+        iconIdInactive = R.drawable.library_music,
+        iconIdActive = R.drawable.library_music,
+        route = "navidrome"
+    )
+
     companion object {
-        val MainScreens = listOf(Home, Search, MoodAndGenres, Library)
+        val MainScreens = listOf(Home, Search, MoodAndGenres, Library, Navidrome)
     }
 }
