@@ -9,6 +9,7 @@
 package com.arturo254.opentune.ui.screens.navidrome
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -493,20 +495,7 @@ private fun SongRow(
             )
         },
         thumbnailContent = {
-            if (number != null) {
-                // Playlist position instead of the cover, to spot where you
-                // are in the m3u order at a glance.
-                Box(
-                    modifier = Modifier.size(ListThumbnailSize),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = number.toString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
+            Box {
                 AsyncImage(
                     model = coverUrl,
                     contentDescription = null,
@@ -515,6 +504,24 @@ private fun SongRow(
                         .size(ListThumbnailSize)
                         .clip(RoundedCornerShape(8.dp)),
                 )
+                if (number != null) {
+                    // Small playlist-position badge over the cover corner.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(2.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.65f))
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                    ) {
+                        Text(
+                            text = number.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         },
         modifier = Modifier
