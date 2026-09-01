@@ -191,6 +191,16 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = ".$gitCommit-debug"
             isDebuggable = true
+            // On CI, sign with the committed keystore so every CI-built APK
+            // shares one signature (local builds keep the default debug key).
+            if (System.getenv("CI") == "true") {
+                signingConfig = signingConfigs.create("ciDebug") {
+                    storeFile = rootProject.file("keystore/ci-debug.keystore")
+                    storePassword = "opentune"
+                    keyAlias = "opentune"
+                    keyPassword = "opentune"
+                }
+            }
         }
     }
 
