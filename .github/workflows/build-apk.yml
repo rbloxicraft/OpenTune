@@ -5,6 +5,9 @@ on:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -24,7 +27,7 @@ jobs:
       - name: Build debug APKs
         run: ./gradlew assembleArm64Debug assembleUniversalDebug --stacktrace
 
-      - name: Upload APKs
+      - name: Upload APKs (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: opentune-debug-apk
@@ -32,3 +35,17 @@ jobs:
             app/build/outputs/apk/arm64/debug/*.apk
             app/build/outputs/apk/universal/debug/*.apk
           if-no-files-found: error
+
+      - name: Publish rolling pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-debug --yes --cleanup-tag || true
+          gh release create latest-debug \
+            app/build/outputs/apk/arm64/debug/*.apk \
+            app/build/outputs/apk/universal/debug/*.apk \
+            --title "OpenTune Dev — Navidrome (latest build)" \
+            --notes "Automated debug build from \`master\` @ ${{ github.sha }}.
+
+          Install \`app-arm64-debug.apk\` on most phones (64-bit), or \`app-universal-debug.apk\` otherwise. Installs as \"OpenTune Debug\" next to the official app. See the README for the Navidrome features." \
+            --prerelease
